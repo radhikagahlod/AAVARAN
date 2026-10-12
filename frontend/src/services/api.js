@@ -4,10 +4,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
 const apiClient = axios.create({
   baseURL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  timeout: 10000,
+  timeout: 15000,
 });
 
 export const api = {
@@ -47,6 +44,35 @@ export const api = {
     apiClient.patch(`/api/devices/issues/${issueId}`, updateData).then((r) => r.data),
   getDeviceSummary: () =>
     apiClient.get('/api/devices/summary').then((r) => r.data),
+
+  // Document Upload & Extraction
+  extractDocument: (formData) =>
+    apiClient.post('/api/upload/extract', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data),
+
+  confirmDocument: (payload) =>
+    apiClient.post('/api/upload/confirm', payload, {
+      headers: { 'Content-Type': 'application/json' },
+    }).then((r) => r.data),
+
+  getDocuments: (filters = {}) =>
+    apiClient.get('/api/documents', { params: filters }).then((r) => r.data),
+
+  getDocumentDetail: (docId) =>
+    apiClient.get(`/api/documents/${docId}`).then((r) => r.data),
+
+  deleteDocument: (docId) =>
+    apiClient.delete(`/api/documents/${docId}`).then((r) => r.data),
+
+  getExportUrl: () => `${baseURL}/api/documents/export`,
+
+  // Resource Analytics
+  getElectricityAnalytics: (building = '') =>
+    apiClient.get('/api/analytics/electricity', { params: building ? { building } : {} }).then((r) => r.data),
+
+  getWaterAnalytics: (building = '') =>
+    apiClient.get('/api/analytics/water', { params: building ? { building } : {} }).then((r) => r.data),
 };
 
 export default api;

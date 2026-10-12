@@ -9,12 +9,14 @@ import {
   Bell,
   Info,
   ShieldCheck,
+  UploadCloud,
   X,
 } from 'lucide-react';
 
 export function Sidebar({ mobileOpen, onClose, counts = { alerts: 0, issues: 0 }, isHealthy = true }) {
   const navItems = [
     { to: '/', label: 'Overview', icon: LayoutDashboard },
+    { to: '/upload', label: 'Upload & Analyze', icon: UploadCloud },
     { to: '/water', label: 'Water Monitoring', icon: Droplets },
     { to: '/electricity', label: 'Electricity Monitoring', icon: Zap },
     { to: '/garbage', label: 'Garbage Monitoring', icon: Trash2 },

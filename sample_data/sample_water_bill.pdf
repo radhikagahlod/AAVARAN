@@ -1,0 +1,53 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 674 >>
+stream
+BT
+/F1 14 Tf
+50 750 Td
+(METROPOLITAN WATER SUPPLY & SEWERAGE BOARD \(DEMO BILL\)) '
+(----------------------------------------------------------) '
+(Consumer No: CAMPUS-WT-55310) '
+(Meter No: WTR-ENG-05) '
+(Building: Engineering Block A) '
+(Billing Period: September 2026) '
+(Billing Date: 2026-10-02) '
+() '
+(Previous Reading: 89100.0) '
+(Current Reading: 90380.0) '
+(Water Consumption: 1280.0 litres) '
+() '
+(Water Tariff Charges: Rs 960.00) '
+(Sewerage Maintenance Surcharge: Rs 140.00) '
+(----------------------------------------------------------) '
+(Total Bill Amount: Rs 1100.00) '
+(Due Date: 2026-10-22) '
+(Status: DEMO TEST DATA - FOR AAVARAN VERIFICATION ONLY) '
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000240 00000 n 
+0000000300 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+370
+%%EOF

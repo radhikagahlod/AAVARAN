@@ -1,0 +1,28 @@
+# Environment variables & secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend/venv/
+venv/
+.pytest_cache/
+
+# Uploaded bills & documents storage
+backend/uploads/
+uploads/
+
+# SQLite databases
+*.db
+*.sqlite3
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.DS_Store
+Thumbs.db

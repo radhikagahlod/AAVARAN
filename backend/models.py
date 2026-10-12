@@ -93,3 +93,28 @@ class Alert(Base):
 
     # Relationship back to DeviceIssue
     device_issue = relationship("DeviceIssue", back_populates="alerts")
+
+
+class UploadedDocument(Base):
+    __tablename__ = "uploaded_documents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filename = Column(String(255), nullable=False)
+    saved_filename = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)  # pdf, image/png, text/csv, etc.
+    category = Column(String(50), nullable=False, index=True)  # electricity_bill, water_bill, electricity_report, water_report, garbage_records, maintenance_report
+    building = Column(String(100), nullable=False, index=True)
+    billing_period = Column(String(100), nullable=False, index=True)
+    upload_date = Column(String(50), nullable=False)  # ISO 8601
+    status = Column(String(50), default="Confirmed", index=True)  # Confirmed, Pending Confirmation, Rejected
+    extracted_data = Column(Text, nullable=True)  # JSON serialized extracted fields
+    consumption = Column(Float, nullable=True)  # Main extracted consumption value
+    consumption_unit = Column(String(30), nullable=True)  # kWh, litres
+    bill_amount = Column(Float, nullable=True)  # Financial bill amount if available
+    consumer_number = Column(String(100), nullable=True)
+    meter_number = Column(String(100), nullable=True)
+    previous_reading = Column(Float, nullable=True)
+    current_reading = Column(Float, nullable=True)
+    records_count = Column(Integer, default=1)
+    notes = Column(Text, nullable=True)
+    is_synthetic = Column(Boolean, default=False)

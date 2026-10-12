@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from models import WaterReading, ElectricityReading, GarbageBin, DeviceIssue, Alert
 from schemas import DeviceIssueCreate, DeviceIssueUpdate
-
+import json
 
 def get_current_iso_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -434,3 +434,360 @@ def reopen_alert(db: Session, alert: Alert) -> Alert:
     db.commit()
     db.refresh(alert)
     return alert
+
+
+def seed_documents_if_empty(db: Session):
+    """
+    Seed initial historical uploaded bills if uploaded_documents table is empty.
+    Provides baseline historical data for regression analysis and percentage comparisons.
+    """
+    from models import UploadedDocument
+    if db.query(UploadedDocument).count() > 0:
+        return
+
+    now_iso = get_current_iso_timestamp()
+    sample_docs = [
+        {
+            "filename": "Science_Complex_Elec_Bill_June2026.pdf",
+            "saved_filename": "sample_elec_june2026.pdf",
+            "file_type": "application/pdf",
+            "category": "electricity_bill",
+            "building": "Science Complex",
+            "billing_period": "June 2026",
+            "upload_date": "2026-07-02T10:00:00Z",
+            "status": "Confirmed",
+            "consumption": 162.0,
+            "consumption_unit": "kWh",
+            "bill_amount": 1458.0,
+            "consumer_number": "CAMPUS-EL-78901",
+            "meter_number": "MTR-SC-101",
+            "previous_reading": 12450.0,
+            "current_reading": 12612.0,
+            "notes": "Archived digital billing record.",
+            "is_synthetic": True,
+        },
+        {
+            "filename": "Science_Complex_Elec_Bill_July2026.pdf",
+            "saved_filename": "sample_elec_july2026.pdf",
+            "file_type": "application/pdf",
+            "category": "electricity_bill",
+            "building": "Science Complex",
+            "billing_period": "July 2026",
+            "upload_date": "2026-08-02T11:15:00Z",
+            "status": "Confirmed",
+            "consumption": 178.0,
+            "consumption_unit": "kWh",
+            "bill_amount": 1602.0,
+            "consumer_number": "CAMPUS-EL-78901",
+            "meter_number": "MTR-SC-101",
+            "previous_reading": 12612.0,
+            "current_reading": 12790.0,
+            "notes": "Archived digital billing record.",
+            "is_synthetic": True,
+        },
+        {
+            "filename": "Science_Complex_Elec_Bill_August2026.pdf",
+            "saved_filename": "sample_elec_aug2026.pdf",
+            "file_type": "application/pdf",
+            "category": "electricity_bill",
+            "building": "Science Complex",
+            "billing_period": "August 2026",
+            "upload_date": "2026-09-03T09:30:00Z",
+            "status": "Confirmed",
+            "consumption": 195.0,
+            "consumption_unit": "kWh",
+            "bill_amount": 1755.0,
+            "consumer_number": "CAMPUS-EL-78901",
+            "meter_number": "MTR-SC-101",
+            "previous_reading": 12790.0,
+            "current_reading": 12985.0,
+            "notes": "Summer research labs elevated AC consumption.",
+            "is_synthetic": True,
+        },
+        {
+            "filename": "Engineering_Water_Bill_June2026.pdf",
+            "saved_filename": "sample_water_june2026.pdf",
+            "file_type": "application/pdf",
+            "category": "water_bill",
+            "building": "Engineering Block A",
+            "billing_period": "June 2026",
+            "upload_date": "2026-07-03T14:20:00Z",
+            "status": "Confirmed",
+            "consumption": 920.0,
+            "consumption_unit": "litres",
+            "bill_amount": 736.0,
+            "consumer_number": "CAMPUS-WT-44120",
+            "meter_number": "WTR-ENG-02",
+            "previous_reading": 84200.0,
+            "current_reading": 85120.0,
+            "notes": "Baseline municipal water utility statement.",
+            "is_synthetic": True,
+        },
+        {
+            "filename": "Engineering_Water_Bill_July2026.pdf",
+            "saved_filename": "sample_water_july2026.pdf",
+            "file_type": "application/pdf",
+            "category": "water_bill",
+            "building": "Engineering Block A",
+            "billing_period": "July 2026",
+            "upload_date": "2026-08-04T12:00:00Z",
+            "status": "Confirmed",
+            "consumption": 990.0,
+            "consumption_unit": "litres",
+            "bill_amount": 792.0,
+            "consumer_number": "CAMPUS-WT-44120",
+            "meter_number": "WTR-ENG-02",
+            "previous_reading": 85120.0,
+            "current_reading": 86110.0,
+            "notes": "Standard campus consumption.",
+            "is_synthetic": True,
+        },
+        {
+            "filename": "Engineering_Water_Bill_August2026.pdf",
+            "saved_filename": "sample_water_aug2026.pdf",
+            "file_type": "application/pdf",
+            "category": "water_bill",
+            "building": "Engineering Block A",
+            "billing_period": "August 2026",
+            "upload_date": "2026-09-04T16:45:00Z",
+            "status": "Confirmed",
+            "consumption": 1080.0,
+            "consumption_unit": "litres",
+            "bill_amount": 864.0,
+            "consumer_number": "CAMPUS-WT-44120",
+            "meter_number": "WTR-ENG-02",
+            "previous_reading": 86110.0,
+            "current_reading": 87190.0,
+            "notes": "Moderate increase; verified within standard operating margins.",
+            "is_synthetic": True,
+        },
+    ]
+
+    for item in sample_docs:
+        doc = UploadedDocument(
+            filename=item["filename"],
+            saved_filename=item["saved_filename"],
+            file_type=item["file_type"],
+            category=item["category"],
+            building=item["building"],
+            billing_period=item["billing_period"],
+            upload_date=item["upload_date"],
+            status=item["status"],
+            consumption=item["consumption"],
+            consumption_unit=item["consumption_unit"],
+            bill_amount=item["bill_amount"],
+            consumer_number=item["consumer_number"],
+            meter_number=item["meter_number"],
+            previous_reading=item["previous_reading"],
+            current_reading=item["current_reading"],
+            records_count=1,
+            notes=item["notes"],
+            is_synthetic=item["is_synthetic"],
+        )
+        db.add(doc)
+    db.commit()
+
+
+def confirm_uploaded_document(
+    db: Session,
+    payload_dict: dict,
+    saved_filename: str,
+    original_filename: str,
+    file_type: str,
+    raw_extracted_data: Optional[dict] = None,
+):
+    """
+    Persists confirmed document record, updates corresponding dashboards,
+    and runs anomaly checks to generate alerts if threshold is exceeded.
+    """
+    from models import UploadedDocument
+    now_iso = get_current_iso_timestamp()
+
+    category = payload_dict.get("category", "electricity_bill")
+    building = payload_dict.get("building", "Main Campus")
+    billing_period = payload_dict.get("billing_period", "Current")
+    consumption = payload_dict.get("consumption")
+    consumption_unit = payload_dict.get("consumption_unit", "kWh")
+    bill_amount = payload_dict.get("bill_amount")
+
+    doc = UploadedDocument(
+        filename=original_filename,
+        saved_filename=saved_filename,
+        file_type=file_type,
+        category=category,
+        building=building,
+        billing_period=billing_period,
+        upload_date=now_iso,
+        status="Confirmed",
+        extracted_data=json.dumps(raw_extracted_data or {}),
+        consumption=consumption,
+        consumption_unit=consumption_unit,
+        bill_amount=bill_amount,
+        consumer_number=payload_dict.get("consumer_number"),
+        meter_number=payload_dict.get("meter_number"),
+        previous_reading=payload_dict.get("previous_reading"),
+        current_reading=payload_dict.get("current_reading"),
+        records_count=raw_extracted_data.get("records_count", 1) if raw_extracted_data else 1,
+        notes=payload_dict.get("notes"),
+        is_synthetic=False,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Automatically update corresponding dashboards & trigger explainable alerts
+    if category in ["electricity_bill", "electricity_report"] and consumption is not None:
+        status_text, is_anom = evaluate_electricity_status(consumption)
+        db.add(
+            ElectricityReading(
+                building=building,
+                location=f"Bill Import - {billing_period}",
+                timestamp=now_iso,
+                consumption=consumption,
+                unit="kWh",
+                status=status_text,
+                threshold=180.0,
+                is_anomaly=is_anom,
+                notes=f"Uploaded and confirmed via bill '{original_filename}'. {payload_dict.get('notes') or ''}".strip(),
+                is_synthetic=False,
+            )
+        )
+        if is_anom:
+            db.add(
+                Alert(
+                    title=f"Unusual Electricity Bill Consumption: {building}",
+                    resource_type="Electricity",
+                    building=building,
+                    location=f"Billing Period: {billing_period}",
+                    description=f"Confirmed billing consumption of {consumption} kWh exceeded baseline threshold (180 kWh).",
+                    severity="High" if consumption > 220 else "Medium",
+                    created_at=now_iso,
+                    recommended_action="Energy audit recommended. Inspect off-hours equipment, chillers, and HVAC schedules.",
+                    status="Active",
+                    is_synthetic=False,
+                )
+            )
+
+    elif category in ["water_bill", "water_report"] and consumption is not None:
+        status_text, is_anom = evaluate_water_status(consumption)
+        db.add(
+            WaterReading(
+                building=building,
+                location=f"Bill Import - {billing_period}",
+                timestamp=now_iso,
+                consumption=consumption,
+                unit="litres",
+                status=status_text,
+                threshold=1200.0,
+                is_anomaly=is_anom,
+                notes=f"Uploaded and confirmed via bill '{original_filename}'. {payload_dict.get('notes') or ''}".strip(),
+                is_synthetic=False,
+            )
+        )
+        if is_anom:
+            db.add(
+                Alert(
+                    title=f"Unusual Water Bill Volume: {building}",
+                    resource_type="Water",
+                    building=building,
+                    location=f"Billing Period: {billing_period}",
+                    description=f"Confirmed billing consumption of {consumption} litres exceeded baseline threshold (1200 litres).",
+                    severity="High" if consumption > 1400 else "Medium",
+                    created_at=now_iso,
+                    recommended_action="Physical inspection recommended to verify fixtures, float valves, and check for potential line leakage.",
+                    status="Active",
+                    is_synthetic=False,
+                )
+            )
+
+    elif category == "garbage_records" and raw_extracted_data:
+        parsed_bins = raw_extracted_data.get("parsed_bins", [])
+        for b in parsed_bins:
+            fill = b.get("fill_level", 50.0)
+            st_text, coll_rec = evaluate_garbage_status(fill)
+            # Check if bin code already exists; update or insert
+            existing_bin = db.query(GarbageBin).filter(GarbageBin.bin_code == b.get("bin_code")).first()
+            if existing_bin:
+                existing_bin.fill_level = fill
+                existing_bin.status = st_text
+                existing_bin.collection_recommended = coll_rec
+                existing_bin.last_updated = now_iso
+            else:
+                db.add(
+                    GarbageBin(
+                        bin_code=b.get("bin_code", f"BIN-{now_iso[:10]}"),
+                        building=b.get("building", building),
+                        location=b.get("location", "Campus Plaza"),
+                        fill_level=fill,
+                        last_updated=now_iso,
+                        status=st_text,
+                        collection_recommended=coll_rec,
+                        is_synthetic=False,
+                    )
+                )
+
+    elif category == "maintenance_report" and raw_extracted_data:
+        parsed_issues = raw_extracted_data.get("parsed_issues", [])
+        for issue_item in parsed_issues:
+            issue_rec = DeviceIssue(
+                device_name=issue_item.get("device_name", "Equipment"),
+                device_type=issue_item.get("device_type", "Fixture"),
+                resource_type=issue_item.get("resource_type", "Water"),
+                building=issue_item.get("building", building),
+                location=issue_item.get("location", "General Area"),
+                description=issue_item.get("description", "Imported maintenance record."),
+                severity=issue_item.get("severity", "Medium"),
+                status=issue_item.get("status", "Reported"),
+                estimated_waste=issue_item.get("estimated_waste"),
+                reported_at=now_iso,
+                updated_at=now_iso,
+                is_synthetic=False,
+            )
+            db.add(issue_rec)
+            db.commit()
+            db.refresh(issue_rec)
+            if issue_rec.severity in ["High", "Medium"] and issue_rec.status != "Resolved":
+                db.add(
+                    Alert(
+                        title=f"Maintenance Report: {issue_rec.device_name}",
+                        resource_type=issue_rec.resource_type if issue_rec.resource_type in ["Water", "Electricity"] else "Device",
+                        building=issue_rec.building,
+                        location=issue_rec.location,
+                        description=issue_rec.description,
+                        severity=issue_rec.severity,
+                        created_at=now_iso,
+                        recommended_action="Dispatch maintenance technician to inspect and repair fixture.",
+                        status="Active",
+                        linked_device_issue_id=issue_rec.id,
+                        is_synthetic=False,
+                    )
+                )
+
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+
+def delete_uploaded_document(db: Session, doc_id: int) -> bool:
+    """Safely deletes document record and removes physical file from disk."""
+    import os
+    from models import UploadedDocument
+    from extractor import UPLOAD_DIR
+
+    doc = db.query(UploadedDocument).filter(UploadedDocument.id == doc_id).first()
+    if not doc:
+        return False
+
+    # Remove file on disk if it exists
+    if doc.saved_filename:
+        file_path = os.path.join(UPLOAD_DIR, doc.saved_filename)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    db.delete(doc)
+    db.commit()
+    return True
+

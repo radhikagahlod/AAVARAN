@@ -1,0 +1,4 @@
+device_name,device_type,resource_type,building,location,description,severity,status,estimated_waste
+Science Block B Washroom Tap,Tap,Water,Science Complex,1st Floor East Restroom,Severely leaking tap handle valve,High,Reported,75.0
+Hostel 1 Corridor Floodlight,Light Bank,Electricity,Student Hostel 1,Wing C Balcony,Sensor stuck in continuous ON state during daylight,Medium,Reported,14.0
+Dining Hall Flush Valve #2,Flush System,Water,Central Dining Hall,Staff Washroom,Slow continuous cistern overflow,Low,In Progress,25.0

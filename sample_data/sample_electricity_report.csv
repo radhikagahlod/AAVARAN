@@ -1,0 +1,6 @@
+timestamp,building,location,consumption,unit,status
+2026-10-10T09:00:00Z,Computer Center,Main Cluster Substation,175.5,kWh,Normal
+2026-10-10T11:00:00Z,Science Complex,Chemistry Auditorium AC,198.0,kWh,Elevated
+2026-10-10T14:00:00Z,Library Building,Reading Hall Floor 2,112.0,kWh,Normal
+2026-10-10T16:00:00Z,Central Dining Hall,Kitchen Refrigerator Bank,145.0,kWh,Normal
+2026-10-10T18:00:00Z,Sports Complex,Stadium Lighting Bank,88.0,kWh,Normal

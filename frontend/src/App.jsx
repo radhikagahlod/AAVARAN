@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import Overview from './pages/Overview';
+import UploadAnalyze from './pages/UploadAnalyze';
 import WaterMonitoring from './pages/WaterMonitoring';
 import ElectricityMonitoring from './pages/ElectricityMonitoring';
 import GarbageMonitoring from './pages/GarbageMonitoring';
@@ -25,6 +26,8 @@ function AppLayout() {
     switch (path) {
       case '/':
         return 'Campus Resource Overview';
+      case '/upload':
+        return 'Upload Documents & AI Resource Analysis';
       case '/water':
         return 'Water Flow Monitoring';
       case '/electricity':
@@ -89,6 +92,7 @@ function AppLayout() {
         <main className="content-body" key={refreshKey}>
           <Routes>
             <Route path="/" element={<Overview />} />
+            <Route path="/upload" element={<UploadAnalyze />} />
             <Route path="/water" element={<WaterMonitoring />} />
             <Route path="/electricity" element={<ElectricityMonitoring />} />
             <Route path="/garbage" element={<GarbageMonitoring />} />

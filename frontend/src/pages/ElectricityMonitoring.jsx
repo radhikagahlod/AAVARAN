@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Zap, AlertTriangle, Search, Info } from 'lucide-react';
+import { Zap, AlertTriangle, Search, Info, UploadCloud } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer,
   BarChart,

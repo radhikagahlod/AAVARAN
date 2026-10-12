@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -156,3 +156,100 @@ class OverviewResponse(BaseModel):
     recent_device_issues: List[DeviceIssueResponse]
     is_synthetic_data: bool
     data_source_notice: str
+
+
+# ==========================================
+# Document Upload & Extraction Schemas
+# ==========================================
+class DocumentExtractResponse(BaseModel):
+    temp_token: str
+    filename: str
+    category: str
+    building: str
+    billing_period: str
+    consumption: Optional[float] = None
+    consumption_unit: Optional[str] = None
+    bill_amount: Optional[float] = None
+    consumer_number: Optional[str] = None
+    meter_number: Optional[str] = None
+    previous_reading: Optional[float] = None
+    current_reading: Optional[float] = None
+    records_count: int = 1
+    extraction_confidence: str = "medium"
+    notes: Optional[str] = None
+    parsed_items: Optional[List[Dict[str, Any]]] = None
+
+
+class DocumentConfirmRequest(BaseModel):
+    temp_token: str
+    category: str
+    building: str
+    billing_period: str
+    consumption: Optional[float] = None
+    consumption_unit: Optional[str] = None
+    bill_amount: Optional[float] = None
+    consumer_number: Optional[str] = None
+    meter_number: Optional[str] = None
+    previous_reading: Optional[float] = None
+    current_reading: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class DocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    file_type: str
+    category: str
+    building: str
+    billing_period: str
+    upload_date: str
+    status: str
+    consumption: Optional[float] = None
+    consumption_unit: Optional[str] = None
+    bill_amount: Optional[float] = None
+    consumer_number: Optional[str] = None
+    meter_number: Optional[str] = None
+    previous_reading: Optional[float] = None
+    current_reading: Optional[float] = None
+    records_count: int = 1
+    notes: Optional[str] = None
+    is_synthetic: bool = False
+
+
+# ==========================================
+# Resource Analytics Schemas
+# ==========================================
+class PredictionModelInfo(BaseModel):
+    has_model: bool
+    message: str
+    projected_next: Optional[float] = None
+    trend_direction: str
+    slope: Optional[float] = None
+    r_squared: Optional[float] = None
+    model_type: Optional[str] = None
+
+
+class HistoricalPeriodInfo(BaseModel):
+    id: int
+    period: str
+    building: str
+    consumption: float
+    bill_amount: Optional[float] = None
+    upload_date: str
+    is_synthetic: bool
+
+
+class ResourceAnalyticsResponse(BaseModel):
+    resource: str
+    current_consumption: float
+    consumption_unit: str
+    total_bill_amount: float
+    previous_consumption: Optional[float] = None
+    percentage_change: Optional[float] = None
+    anomaly_flag: bool
+    anomaly_reason: str
+    recommended_action: str
+    historical_periods: List[HistoricalPeriodInfo]
+    prediction: PredictionModelInfo

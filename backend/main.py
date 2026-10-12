@@ -1,8 +1,11 @@
+import io
 import os
+import uuid
+import csv
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -10,6 +13,11 @@ from database import Base, SessionLocal, engine, get_db
 import models
 import schemas
 import services
+import extractor
+import analytics
+
+# In-memory dictionary storing pending extraction data for preview & confirmation
+TEMP_EXTRACTS: Dict[str, Dict[str, Any]] = {}
 
 
 @asynccontextmanager
@@ -20,6 +28,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         services.seed_database_if_empty(db)
+        services.seed_documents_if_empty(db)
     finally:
         db.close()
     yield
@@ -28,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AAVARAN API",
     description="Campus Resource Awareness & Defective Device Monitoring Platform",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -60,7 +69,6 @@ app.add_middleware(
 @app.get("/api/health", response_model=schemas.HealthResponse, tags=["Health"])
 def health_check(db: Session = Depends(get_db)):
     try:
-        # Check database connectivity
         db.execute(models.WaterReading.__table__.select().limit(1))
         db_status = "connected"
     except Exception as e:
@@ -69,8 +77,8 @@ def health_check(db: Session = Depends(get_db)):
     return schemas.HealthResponse(
         status="healthy" if db_status == "connected" else "degraded",
         database=db_status,
-        version="1.0.0",
-        message="AAVARAN API is running smoothly.",
+        version="1.1.0",
+        message="AAVARAN API is running smoothly with upload & analytics engine active.",
     )
 
 
@@ -85,12 +93,10 @@ def get_overview(db: Session = Depends(get_db)):
     alerts = db.query(models.Alert).all()
     device_issues = db.query(models.DeviceIssue).all()
 
-    # Calculate summaries
     total_water = sum(r.consumption for r in water_readings) if water_readings else 0.0
     total_electricity = sum(r.consumption for r in electricity_readings) if electricity_readings else 0.0
     avg_garbage = (sum(b.fill_level for b in garbage_bins) / len(garbage_bins)) if garbage_bins else 0.0
 
-    # Determine overall resource statuses
     has_water_warning = any(r.is_anomaly for r in water_readings)
     has_elec_warning = any(r.is_anomaly for r in electricity_readings)
     has_garbage_warning = any(b.collection_recommended for b in garbage_bins)
@@ -102,7 +108,6 @@ def get_overview(db: Session = Depends(get_db)):
     active_alerts = [a for a in alerts if a.status == "Active"]
     high_priority_alerts = [a for a in active_alerts if a.severity == "High"]
 
-    # Device summaries
     total_issues = len(device_issues)
     open_issues = sum(1 for d in device_issues if d.status == "Reported")
     in_progress = sum(1 for d in device_issues if d.status == "In Progress")
@@ -117,12 +122,10 @@ def get_overview(db: Session = Depends(get_db)):
         high_priority_issues=high_priority,
     )
 
-    # Format recent readings
     recent_water = db.query(models.WaterReading).order_by(models.WaterReading.id.desc()).limit(6).all()
     recent_elec = db.query(models.ElectricityReading).order_by(models.ElectricityReading.id.desc()).limit(6).all()
     recent_devices = db.query(models.DeviceIssue).order_by(models.DeviceIssue.id.desc()).limit(5).all()
 
-    # Check if data contains synthetic records
     any_synthetic = any(r.is_synthetic for r in water_readings) or any(d.is_synthetic for d in device_issues)
 
     return schemas.OverviewResponse(
@@ -144,7 +147,7 @@ def get_overview(db: Session = Depends(get_db)):
         recent_electricity_readings=recent_elec,
         recent_device_issues=recent_devices,
         is_synthetic_data=any_synthetic,
-        data_source_notice="Initial campus telemetry readings and baseline seed records are synthetic simulations for demonstration. User-reported issues are stored live.",
+        data_source_notice="Initial campus telemetry readings and baseline seed records are synthetic simulations for demonstration. User-reported issues and uploaded bills are stored live.",
     )
 
 
@@ -291,3 +294,244 @@ def get_device_summary(db: Session = Depends(get_db)):
         resolved_issues=resolved,
         high_priority_issues=high_priority,
     )
+
+
+# ==========================================
+# 8. Document Upload & Extraction Endpoints
+# ==========================================
+@app.post(
+    "/api/upload/extract",
+    response_model=schemas.DocumentExtractResponse,
+    tags=["Upload & Analyze"],
+)
+async def extract_document_endpoint(
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    building: str = Form("Main Campus"),
+    billing_period: str = Form("Current Period"),
+):
+    """
+    Step 1 of Upload Workflow:
+    Upload document, validate type/size, extract fields without committing to DB yet.
+    Returns preview of extracted fields and a temporary token for user review.
+    """
+    filename = file.filename or "uploaded_file"
+    content = await file.read()
+
+    # Validate file format and size
+    is_valid, err_msg = extractor.validate_file(filename, content)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=err_msg)
+
+    # Save safely with UUID prefix in uploads directory
+    saved_filename = extractor.save_uploaded_file(filename, content, prefix="temp_")
+
+    try:
+        extracted = extractor.extract_document_data(filename, content, category)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract document data: {str(e)}"
+        )
+
+    temp_token = uuid.uuid4().hex
+    TEMP_EXTRACTS[temp_token] = {
+        "saved_filename": saved_filename,
+        "original_filename": filename,
+        "file_type": file.content_type or os.path.splitext(filename)[1],
+        "category": category,
+        "building": building,
+        "billing_period": billing_period,
+        "raw_extracted": extracted,
+    }
+
+    # Determine default unit based on category
+    default_unit = "litres" if "water" in category else "kWh"
+
+    return schemas.DocumentExtractResponse(
+        temp_token=temp_token,
+        filename=filename,
+        category=category,
+        building=building,
+        billing_period=extracted.get("billing_period") or billing_period,
+        consumption=extracted.get("consumption"),
+        consumption_unit=extracted.get("consumption_unit", default_unit),
+        bill_amount=extracted.get("bill_amount"),
+        consumer_number=extracted.get("consumer_number"),
+        meter_number=extracted.get("meter_number"),
+        previous_reading=extracted.get("previous_reading"),
+        current_reading=extracted.get("current_reading"),
+        records_count=extracted.get("records_count", 1),
+        extraction_confidence=extracted.get("extraction_confidence", "medium"),
+        notes=extracted.get("notes"),
+        parsed_items=extracted.get("parsed_readings") or extracted.get("parsed_bins") or extracted.get("parsed_issues"),
+    )
+
+
+@app.post(
+    "/api/upload/confirm",
+    response_model=schemas.DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Upload & Analyze"],
+)
+def confirm_document_endpoint(
+    payload: schemas.DocumentConfirmRequest, db: Session = Depends(get_db)
+):
+    """
+    Step 2 of Upload Workflow:
+    User reviews and confirms (or manually edits) the extracted fields.
+    Persists document metadata, updates telemetry readings, and runs threshold checks.
+    """
+    temp_info = TEMP_EXTRACTS.pop(payload.temp_token, None)
+
+    saved_filename = temp_info["saved_filename"] if temp_info else f"doc_{payload.temp_token[:8]}"
+    original_filename = temp_info["original_filename"] if temp_info else "manual_entry_bill"
+    file_type = temp_info["file_type"] if temp_info else "application/pdf"
+    raw_extracted = temp_info["raw_extracted"] if temp_info else {}
+
+    doc = services.confirm_uploaded_document(
+        db=db,
+        payload_dict=payload.model_dump(),
+        saved_filename=saved_filename,
+        original_filename=original_filename,
+        file_type=file_type,
+        raw_extracted_data=raw_extracted,
+    )
+
+    return doc
+
+
+@app.get(
+    "/api/documents",
+    response_model=List[schemas.DocumentResponse],
+    tags=["Upload & Analyze"],
+)
+def get_documents(
+    category: Optional[str] = Query(None),
+    building: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """List uploaded documents with search and filtering."""
+    query = db.query(models.UploadedDocument)
+    if category:
+        query = query.filter(models.UploadedDocument.category == category)
+    if building:
+        query = query.filter(models.UploadedDocument.building.ilike(f"%{building}%"))
+    if status:
+        query = query.filter(models.UploadedDocument.status == status)
+    if search:
+        query = query.filter(
+            (models.UploadedDocument.filename.ilike(f"%{search}%"))
+            | (models.UploadedDocument.building.ilike(f"%{search}%"))
+            | (models.UploadedDocument.billing_period.ilike(f"%{search}%"))
+        )
+
+    return query.order_by(models.UploadedDocument.id.desc()).all()
+
+
+@app.get("/api/documents/export", tags=["Upload & Analyze"])
+def export_documents_csv(db: Session = Depends(get_db)):
+    """Export all uploaded documents and extracted measurements as a downloadable CSV report."""
+    docs = db.query(models.UploadedDocument).order_by(models.UploadedDocument.id.asc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID",
+        "Filename",
+        "Category",
+        "Building",
+        "Billing Period",
+        "Upload Date",
+        "Status",
+        "Consumption",
+        "Unit",
+        "Bill Amount",
+        "Consumer Number",
+        "Meter Number",
+        "Previous Reading",
+        "Current Reading",
+        "Notes",
+    ])
+
+    for d in docs:
+        writer.writerow([
+            d.id,
+            d.filename,
+            d.category,
+            d.building,
+            d.billing_period,
+            d.upload_date,
+            d.status,
+            d.consumption if d.consumption is not None else "",
+            d.consumption_unit or "",
+            d.bill_amount if d.bill_amount is not None else "",
+            d.consumer_number or "",
+            d.meter_number or "",
+            d.previous_reading if d.previous_reading is not None else "",
+            d.current_reading if d.current_reading is not None else "",
+            d.notes or "",
+        ])
+
+    csv_data = output.getvalue()
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=aavaran_resource_documents_report.csv"},
+    )
+
+
+@app.get(
+    "/api/documents/{doc_id}",
+    response_model=schemas.DocumentResponse,
+    tags=["Upload & Analyze"],
+)
+def get_document_detail(doc_id: int, db: Session = Depends(get_db)):
+    doc = db.query(models.UploadedDocument).filter(models.UploadedDocument.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
+    return doc
+
+
+@app.delete("/api/documents/{doc_id}", tags=["Upload & Analyze"])
+def delete_document_endpoint(doc_id: int, db: Session = Depends(get_db)):
+    success = services.delete_uploaded_document(db, doc_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Document with ID {doc_id} not found")
+    return {"detail": f"Document #{doc_id} safely removed from database and disk storage."}
+
+
+# ==========================================
+# 9. Resource Analytics Endpoints (Real AI)
+# ==========================================
+@app.get(
+    "/api/analytics/electricity",
+    response_model=schemas.ResourceAnalyticsResponse,
+    tags=["Analytics"],
+)
+def get_electricity_analytics(
+    building: Optional[str] = Query(None), db: Session = Depends(get_db)
+):
+    """
+    Computes period-over-period percentage changes, threshold flags,
+    and Ordinary Least Squares Linear Regression projection for electricity.
+    """
+    return analytics.analyze_electricity(db, building=building)
+
+
+@app.get(
+    "/api/analytics/water",
+    response_model=schemas.ResourceAnalyticsResponse,
+    tags=["Analytics"],
+)
+def get_water_analytics(
+    building: Optional[str] = Query(None), db: Session = Depends(get_db)
+):
+    """
+    Computes period-over-period percentage changes, threshold flags,
+    and Ordinary Least Squares Linear Regression projection for water.
+    """
+    return analytics.analyze_water(db, building=building)
